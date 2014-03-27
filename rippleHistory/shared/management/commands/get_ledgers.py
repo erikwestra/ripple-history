@@ -285,7 +285,10 @@ class Command(BaseCommand):
 
             for trans in response['result']['ledger']['transactions']:
                 if trans['TransactionType'] != "Payment":
-                    continue # Ignore non-payment transactions???
+                    # Ignore non-payment transactions???
+                    self.log("   Ignoring transaction of type " +
+                             trans['TransactionType'])
+                    continue
 
                 # Extract the transaction details we need.
 
