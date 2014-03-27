@@ -23,17 +23,18 @@ import_setting = SettingsImporter(globals(),
                                   custom_settings="rippleHistory.custom_settings",
                                   env_prefix="RH_")
 
-import_setting("DEBUG",                     True)
-import_setting("SET_ALLOWED_HOSTS",         True)
-import_setting("TIME_ZONE",                 "UTC")
-import_setting("DATABASE_URL",              None)
+import_setting("DEBUG",                        True)
+import_setting("SET_ALLOWED_HOSTS",            True)
+import_setting("TIME_ZONE",                    "UTC")
+import_setting("DATABASE_URL",                 None)
 # NOTE: DATABASE_URL uses the following general format:
 #           postgres://username:password@host:port/database_name
 #       or for a database on the local machine:
 #           postgres://username:password@localhost/database_name
-import_setting("LOG_DIR",                   os.path.join(ROOT_DIR, "logs"))
-import_setting("ENABLE_DEBUG_LOGGING",      False)
-import_setting("LOGGING_DESTINATION",       "file")
+import_setting("LOG_DIR",                      os.path.join(ROOT_DIR, "logs"))
+import_setting("ENABLE_DEBUG_LOGGING",         False)
+import_setting("LOGGING_DESTINATION",          "file")
+import_setting("RIPPLED_SERVER_WEBSOCKET_URL", "ws://127.0.0.1:6006")
 
 #############################################################################
 

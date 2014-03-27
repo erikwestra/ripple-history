@@ -7,6 +7,7 @@ import datetime
 import decimal
 
 from django.core.management.base import BaseCommand, CommandError
+from django.conf                 import settings
 
 import simplejson as json
 import websocket
@@ -62,7 +63,8 @@ class Command(BaseCommand):
         # Finally, start up our websocket app.
 
         #websocket.enableTrace(True)
-        self._socket = websocket.WebSocketApp("ws://ripple.3taps.com:6006",
+        websocket_url = settings.RIPPLED_SERVER_WEBSOCKET_URL
+        self._socket = websocket.WebSocketApp(websocket_url,
                                               on_message=self.on_message,
                                               on_error=self.on_error,
                                               on_close=self.on_close)
