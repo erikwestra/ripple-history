@@ -27,11 +27,16 @@ class Command(BaseCommand):
     args        = None
     help        = "Download ledger details from the rippled server."
     option_list = BaseCommand.option_list + (
-        make_option("--log-to-file",
+        make_option("-f", "--log-to-file",
                     action="store_true",
                     dest="log_to_file",
                     default=False,
                     help="Write log messages to a file on disk."),
+        make_option("-d", "--debug",
+                    action="store_true",
+                    dest="debug",
+                    default=False,
+                    help="Enable low-level websocket debugging."),
     )
 
 
@@ -76,7 +81,9 @@ class Command(BaseCommand):
 
         # Finally, start up our websocket app.
 
-        #websocket.enableTrace(True)
+        if options['debug']:
+            websocket.enableTrace(True)
+
         websocket_url = settings.RIPPLED_SERVER_WEBSOCKET_URL
         self._socket = websocket.WebSocketApp(websocket_url,
                                               on_message=self.on_message,
