@@ -5,6 +5,10 @@
 """
 import datetime
 import decimal
+import os
+import os.path
+
+from optparse import make_option
 
 from django.core.management.base import BaseCommand, CommandError
 from django.conf                 import settings
@@ -20,28 +24,38 @@ from rippleHistory.shared.lib.ledgerChain import LedgerChain
 class Command(BaseCommand):
     """ Our "get_ledgers" management command.
     """
-    args = None
-    help = "Download ledger details from the rippled server."
+    args        = None
+    help        = "Download ledger details from the rippled server."
+    option_list = BaseCommand.option_list + (
+        make_option("--log-to-file",
+                    action="store_true",
+                    dest="log_to_file",
+                    default=False,
+                    help="Write log messages to a file on disk."),
+    )
 
 
     def __init__(self):
         """ Standard initialiser.
         """
-        self._callbacks                = {}   # Maps request ID to callback.
-        self._next_req_id              = 1    # Next request ID to use.
-        self._socket                   = None # Our open Websocket.
-        self._latest_ledger_on_startup = None # most recent Ledger object.
-        self._known_accounts           = {}   # Maps Ripple address to rec ID.
-        self._num_account_balances     = 0    # Number of retrieved balances.
-        self._queued_account_balances  = []   # List of queued Balance objects.
-        self._ledger_chain             = None # Our LedgerChain object.
+        self._log_to_file              = False # Save log messages to file?
+        self._callbacks                = {}    # Maps request ID to callback.
+        self._next_req_id              = 1     # Next request ID to use.
+        self._socket                   = None  # Our open Websocket.
+        self._latest_ledger_on_startup = None  # most recent Ledger object.
+        self._known_accounts           = {}    # Maps Ripple address to rec ID.
+        self._num_account_balances     = 0     # Number of retrieved balances.
+        self._queued_account_balances  = []    # List of queued Balance recs.
+        self._ledger_chain             = None  # Our LedgerChain object.
 
         BaseCommand.__init__(self)
 
 
-    def handle(self, *args, **kwargs):
+    def handle(self, *args, **options):
         if len(args) != 0:
             raise CommandError("This command takes no parameters.")
+
+        self._log_to_file = options['log_to_file']
 
         # Start by deleting all the existing account balances, and loading a
         # complete list of all known account IDs into memory.
@@ -130,7 +144,7 @@ class Command(BaseCommand):
             "ledger close" events so that we can get the details for the new
             ledgers as they close.
         """
-        print "Requesting latest ledger"
+        self.log("Requesting latest ledger")
         self.send_request("ledger", {'ledger_index': "validated"},
                           callback=self.on_got_latest_ledger)
 
@@ -142,7 +156,7 @@ class Command(BaseCommand):
             ledger.
         """
         if response["status"] != "success":
-            print "ERROR: ledger call returned %s" % str(response)
+            self.log("ERROR: ledger call returned %s" % str(response))
             return
 
         ledger_hash = response['result']['ledger']['ledger_hash']
@@ -164,7 +178,7 @@ class Command(BaseCommand):
 
         self._latest_ledger_on_startup = ledger
 
-        print "Requesting ledger data"
+        self.log("Requesting ledger data")
         self.send_request("ledger_data",
                           {"ledger_hash" : ledger_hash},
                           callback=self.on_got_ledger_data)
@@ -179,7 +193,7 @@ class Command(BaseCommand):
             updates (if there isn't).
         """
         if response["status"] != "success":
-            print "ERROR: ledger data call returned %s" % str(response)
+            self.log("ERROR: ledger data call returned %s" % str(response))
             return
 
         for entry in response['result']['state']:
@@ -200,10 +214,10 @@ class Command(BaseCommand):
                 issuer   = entry['HighLimit']['issuer']
                 self.remember_account_balance(account, currency, value, issuer)
 
-        if "marker" in response['result']:
+        if False: #"marker" in response['result']:
             # We have more ledger data to come -> ask for it.
-            print ("Requesting more ledger data (%d balances so far)"
-                   % self._num_account_balances)
+            self.log("Requesting more ledger data (%d balances so far)"
+                     % self._num_account_balances)
             ledger_hash = self._latest_ledger_on_startup.ledger_hash
             self.send_request("ledger_data",
                               {"ledger_hash" : ledger_hash,
@@ -219,9 +233,10 @@ class Command(BaseCommand):
             Balance.objects.bulk_create(self._queued_account_balances)
             self._queued_account_balances = []
 
-        print "Received all %d account balances" % self._num_account_balances
-        print
-        print "Listening for ledger closed events..."
+        self.log("Received all %d account balances" %
+                 self._num_account_balances)
+        self.log("")
+        self.log("Listening for ledger closed events...")
 
         self.send_request("subscribe",
                           {'streams' : ["ledger"]},
@@ -236,7 +251,7 @@ class Command(BaseCommand):
             request for the missing ledger.
         """
         if response["status"] != "success":
-            print "ERROR: ledger data call returned %s" % str(response)
+            self.log("ERROR: ledger data call returned %s" % str(response))
             return
 
         ledger_hash = response['result']['ledger']['ledger_hash']
@@ -258,8 +273,9 @@ class Command(BaseCommand):
 
             self._ledger_chain.add(ledger_hash, parent_hash)
 
-        print "Got ledger %s (%s)" % (ledger.ledger_hash,
-                                      str(ledger.close_time))
+        self.log("Got ledger %s (%s, %d transactions)" %
+                 (ledger.ledger_hash, str(ledger.close_time),
+                 len(response['result']['ledger']['transactions'])))
 
         # See if we already have the transactions for this ledger.  If not, add
         # them.
@@ -371,7 +387,7 @@ class Command(BaseCommand):
     def on_close(self, ws):
         """ Respond to the websocket connection being closed.
         """
-        print "### Websocket connection closing ###"
+        self.log("### Websocket connection closing ###")
 
 
     def on_message(self, ws, message):
@@ -386,8 +402,8 @@ class Command(BaseCommand):
             try:
                 callback = self._callbacks[request_id]
             except KeyError:
-                print ("!!! Missing callback for request ID %s" %
-                       str(request_id))
+                self.log("!!! Missing callback for request ID %s" %
+                         str(request_id))
                 return
 
             del self._callbacks[request_id]
@@ -413,15 +429,15 @@ class Command(BaseCommand):
         # If we get here, we don't know what the message is -> display it to
         # the user.
 
-        print "Unknown message received from server:"
-        print
-        print message
+        self.log("Unknown message received from server:")
+        self.log("")
+        self.log(message)
 
 
     def on_error(self, ws, error):
         """ Respond to a websocket error.
         """
-        print "### error: %s ###" % str(error)
+        self.log("### error: %s ###" % str(error))
 
 
     def remember_account_balance(self, ripple_address, currency, value,
@@ -456,4 +472,18 @@ class Command(BaseCommand):
         """
         timestamp = long(close_time) + 946684800
         return datetime.datetime.fromtimestamp(timestamp)
+
+
+    def log(self, msg):
+        """ Write the given message to our log.
+        """
+        if self._log_to_file:
+            log_dir = os.path.join(settings.ROOT_DIR, "temp")
+            if not os.path.exists(log_dir):
+                os.mkdir(log_dir)
+            f = file(os.path.join(log_dir, "worker.log"), "a")
+            f.write(msg + "\n")
+            f.close()
+        else:
+            self.stdout.write(msg + "\n")
 
