@@ -32,11 +32,16 @@ class Command(BaseCommand):
                     dest="log_to_file",
                     default=False,
                     help="Write log messages to a file on disk."),
-        make_option("-r", "--log-requests",
+        make_option("-l", "--log-requests",
                     action="store_true",
                     dest="log_requests",
                     default=False,
                     help="Log all websocket requests."),
+        make_option("-r", "--log-responses",
+                    action="store_true",
+                    dest="log_responses",
+                    default=False,
+                    help="Log all websocket responses."),
     )
 
 
@@ -45,6 +50,7 @@ class Command(BaseCommand):
         """
         self._log_to_file              = False # Save log messages to file?
         self._log_requests             = False # Log all websocket requests?
+        self._log_responses            = False # Log all websocket responses?
         self._callbacks                = {}    # Maps request ID to callback.
         self._next_req_id              = 1     # Next request ID to use.
         self._socket                   = None  # Our open Websocket.
@@ -61,8 +67,9 @@ class Command(BaseCommand):
         if len(args) != 0:
             raise CommandError("This command takes no parameters.")
 
-        self._log_to_file  = options['log_to_file']
-        self._log_requests = options['log_requests']
+        self._log_to_file   = options['log_to_file']
+        self._log_requests  = options['log_requests']
+        self._log_responses = options['log_responses']
 
         # Start by deleting all the existing account balances, and loading a
         # complete list of all known account IDs into memory.
@@ -408,7 +415,7 @@ class Command(BaseCommand):
     def on_message(self, ws, message):
         """ Respond to a message being received from the server.
         """
-        if self._log_requests:
+        if self._log_responses:
             self.log("RECV: %s" % message)
 
         response = json.loads(message)
