@@ -214,7 +214,7 @@ class Command(BaseCommand):
                 issuer   = entry['HighLimit']['issuer']
                 self.remember_account_balance(account, currency, value, issuer)
 
-        if False: #"marker" in response['result']:
+        if "marker" in response['result']:
             # We have more ledger data to come -> ask for it.
             self.log("Requesting more ledger data (%d balances so far)"
                      % self._num_account_balances)
