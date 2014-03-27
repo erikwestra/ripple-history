@@ -415,10 +415,14 @@ class Command(BaseCommand):
     def on_message(self, ws, message):
         """ Respond to a message being received from the server.
         """
-        if self._log_responses:
-            self.log("RECV: %s" % message)
-
         response = json.loads(message)
+        if self._log_responses:
+            if "type" in response:
+                self.log("RECV: %s (%d bytes)" % (response['type'],
+                                                  len(message)))
+            else:
+                self.log("RECV: %s" % message)
+
         if response['type'] == "response":
             # We've got a response to a previous request -> pass it onto the
             # associated callback.
