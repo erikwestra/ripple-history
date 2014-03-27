@@ -32,11 +32,11 @@ class Command(BaseCommand):
                     dest="log_to_file",
                     default=False,
                     help="Write log messages to a file on disk."),
-        make_option("-d", "--debug",
+        make_option("-r", "--log-requests",
                     action="store_true",
-                    dest="debug",
+                    dest="log_requests",
                     default=False,
-                    help="Enable low-level websocket debugging."),
+                    help="Log all websocket requests."),
     )
 
 
@@ -44,6 +44,7 @@ class Command(BaseCommand):
         """ Standard initialiser.
         """
         self._log_to_file              = False # Save log messages to file?
+        self._log_requests             = False # Log all websocket requests?
         self._callbacks                = {}    # Maps request ID to callback.
         self._next_req_id              = 1     # Next request ID to use.
         self._socket                   = None  # Our open Websocket.
@@ -60,7 +61,8 @@ class Command(BaseCommand):
         if len(args) != 0:
             raise CommandError("This command takes no parameters.")
 
-        self._log_to_file = options['log_to_file']
+        self._log_to_file  = options['log_to_file']
+        self._log_requests = options['log_requests']
 
         # Start by deleting all the existing account balances, and loading a
         # complete list of all known account IDs into memory.
@@ -81,9 +83,7 @@ class Command(BaseCommand):
 
         # Finally, start up our websocket app.
 
-        if options['debug']:
-            websocket.enableTrace(True)
-
+        #websocket.enableTrace(True)
         websocket_url = settings.RIPPLED_SERVER_WEBSOCKET_URL
         self._socket = websocket.WebSocketApp(websocket_url,
                                               on_message=self.on_message,
@@ -131,6 +131,11 @@ class Command(BaseCommand):
         # Remember the callback function to use for this request.
 
         self._callbacks[request_id] = callback
+
+        # If we've been asked to do so, log the request.
+
+        if self._log_requests:
+            self.log("SEND: %s %s" % (command, repr(params)))
 
         # Send the request off to the server.
 
@@ -403,6 +408,9 @@ class Command(BaseCommand):
     def on_message(self, ws, message):
         """ Respond to a message being received from the server.
         """
+        if self._log_requests:
+            self.log("RECV: %s" % message)
+
         response = json.loads(message)
         if response['type'] == "response":
             # We've got a response to a previous request -> pass it onto the
