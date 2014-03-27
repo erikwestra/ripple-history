@@ -338,8 +338,8 @@ class Command(BaseCommand):
 
             # Save the transactions, and remember that we've done this.
 
-            log("  -> Saving %d transactions for this ledger." %
-                len(transactions))
+            self.log("  -> Saving %d transactions for this ledger." %
+                    len(transactions))
 
             Transaction.objects.bulk_create(transactions)
 
