@@ -1,0 +1,143 @@
+Thoughts on the ripple-history system
+
+Because we have our own "rippled" server to access, we can subscribe to ledger
+close messages.  These can be sent to a given URL, which will be within the
+ripple-history system itself.
+
+This is cool -- it will work fine for following the transaction stream.
+
+The next trick is to go back in time scanning for previous transactions.
+
+I know the basic approach:
+
+ * I keep a local database of the ledger chain, each ledger hash pointing to
+   both the next and the previous ledger hash.  This is a double-linked-list of
+   ledgers.
+
+ * Separately, keep a list of all transactions included in each ledger close.
+   The transactions point back to the ledger they belong to.
+
+ * I can set up the rippled server to send a notification, via JSON-RPC, to a
+   given endpoint whenever a ledger is closed.  This endpoint would be set up
+   as follows:
+
+    /internal/ledger_closed
+
+   The received data would include the hash for the closed ledger, allowing us
+   to process this ledger.
+
+   Because ledgers might be missed, we need to scan backwards if the previous
+   ledger is not in the database.
+
+##############
+
+At the time the ripple-history server starts up, we have the following:
+
+    rippled downloaded ledgers:
+
+        8, 9, 10
+
+    locally cached ledgers:
+
+        none
+
+We subscribe to the ledger close notifications, and wait for a notification to
+come in.  This comes in for ledger number 11, which gets processed as follows:
+
+    rippled downloaded ledgers:
+
+        8, 9, 10, 11
+
+    locally cached ledgers:
+
+        11
+
+We then check the previous ledger (10), and see that we don't have it yet, so
+we ask for that ledger to be downloaded, too:
+
+    rippled downloaded ledgers:
+
+        8, 9, 10, 11
+
+    locally cached ledgers:
+
+        10, 11
+
+The server then shuts down for a while, and when we start it up again, we have
+the following:
+
+    rippled downloaded ledgers:
+
+        8, 9, 10, 11, 12, 13, 14
+
+    locally cached ledgers:
+
+        10, 11
+
+We then wait for the next ledger to be closed (15), and process it:
+
+    rippled downloaded ledgers:
+
+        8, 9, 10, 11, 12, 13, 14, 15
+
+    locally cached ledgers:
+
+        10, 11, 15
+
+We then notice that the previous ledger (14) is not in our cache, so we ask for
+it:
+
+    rippled downloaded ledgers:
+
+        8, 9, 10, 11, 12, 13, 14, 15
+
+    locally cached ledgers:
+
+        10, 11, 14, 15
+
+We keep going, downloading more and more ledgers, until we get to one that we
+already have:
+
+    rippled downloaded ledgers:
+
+        8, 9, 10, 11, 12, 13, 14, 15
+
+    locally cached ledgers:
+
+        10, 11, 12, 13, 14, 15
+
+So far so good...we then look at the earliest locally cached ledger, and see if
+we can get any more from the server -- we do this by asking for ledger #9:
+
+    rippled downloaded ledgers:
+
+        8, 9, 10, 11, 12, 13, 14, 15
+
+    locally cached ledgers:
+
+        9, 10, 11, 12, 13, 14, 15
+
+And once more, for ledger #8:
+
+    rippled downloaded ledgers:
+
+        8, 9, 10, 11, 12, 13, 14, 15
+
+    locally cached ledgers:
+
+        8, 9, 10, 11, 12, 13, 14, 15
+
+Now, because the rippled server itself is continuing to download more ledgers,
+we may end up with even more ledgers available -- and we check for this each
+time the ledger is closed, automatically filling in the gaps as we go along:
+
+    rippled downloaded ledgers:
+
+        6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+
+    locally cached ledgers:
+
+        7, 8, 9, 10, 11, 12, 13, 14, 15
+
+Not bad...
+
