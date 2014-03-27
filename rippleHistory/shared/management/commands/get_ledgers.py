@@ -273,9 +273,8 @@ class Command(BaseCommand):
 
             self._ledger_chain.add(ledger_hash, parent_hash)
 
-        self.log("Got ledger %s (%s, %d transactions)" %
-                 (ledger.ledger_hash, str(ledger.close_time),
-                 len(response['result']['ledger']['transactions'])))
+        self.log("Got ledger %s (%s)" % (ledger.ledger_hash,
+                                         str(ledger.close_time)))
 
         # See if we already have the transactions for this ledger.  If not, add
         # them.
@@ -338,6 +337,9 @@ class Command(BaseCommand):
                 transactions.append(transaction)
 
             # Save the transactions, and remember that we've done this.
+
+            log("  -> Saving %d transactions for this ledger." %
+                len(transactions))
 
             Transaction.objects.bulk_create(transactions)
 
