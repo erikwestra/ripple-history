@@ -403,11 +403,15 @@ class Command(BaseCommand):
         # ledger chain to find the latest ledger we don't have transactions
         # for.
 
+        self.log("Searching backwards for earlier ledgers...")
+
         chains = self._ledger_chain.get_chains()
         if len(chains) > 0:
             parent_hash = chains[-1]['first_parent']
+            self.log("Attempting ledger " + parent_hash)
             if parent_hash != "0": # Genesis ledger.
                 if parent_hash not in self._requested_ledgers:
+                    self.log("Requesting this ledger")
                     self.send_request("ledger",
                                       {"ledger_hash"  : parent_hash,
                                        "transactions" : True,
