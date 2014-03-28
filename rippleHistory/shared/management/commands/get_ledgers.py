@@ -59,6 +59,7 @@ class Command(BaseCommand):
         self._num_account_balances     = 0     # Number of retrieved balances.
         self._queued_account_balances  = []    # List of queued Balance recs.
         self._ledger_chain             = None  # Our LedgerChain object.
+        self._requested_ledgers        = set() # ledgers requested from server.
 
         BaseCommand.__init__(self)
 
@@ -277,6 +278,9 @@ class Command(BaseCommand):
         parent_hash = response['result']['ledger']['parent_hash']
         close_time  = response['result']['ledger']['close_time']
 
+        if ledger_hash in self._requested_ledgers:
+            self._requested_ledgers.remove(ledger_hash)
+
         # Get the Ledger object for this ledger, creating it if necessary.
 
         try:
@@ -372,21 +376,25 @@ class Command(BaseCommand):
         try:
             parent_ledger = Ledger.objects.get(ledger_hash=parent_hash)
         except Ledger.DoesNotExist:
-            self.send_request("ledger",
-                              {"ledger_hash"  : parent_hash,
-                               "transactions" : True,
-                               "expand"       : True},
-                              callback=self.on_got_ledger)
+            if parent_hash not in self._requested_ledgers:
+                self.send_request("ledger",
+                                  {"ledger_hash"  : parent_hash,
+                                   "transactions" : True,
+                                   "expand"       : True},
+                                  callback=self.on_got_ledger)
+                self._requested_ledgers.add(parent_hash)
             return
 
         if not parent_ledger.got_transactions:
             # We know about the parent ledger, but not the transactions within
             # it -> request it.
-            self.send_request("ledger",
-                              {"ledger_hash"  : parent_hash,
-                               "transactions" : True,
-                               "expand"       : True},
-                              callback=self.on_got_ledger)
+            if parent_hash not in self._requested_ledgers:
+                self.send_request("ledger",
+                                  {"ledger_hash"  : parent_hash,
+                                   "transactions" : True,
+                                   "expand"       : True},
+                                  callback=self.on_got_ledger)
+                self._requested_ledgers.add(parent_hash)
             return
 
         # If we get here, we have the parent ledger.  This means we have all
@@ -399,11 +407,12 @@ class Command(BaseCommand):
         if len(chains) > 0:
             parent_hash = chains[-1]['first_parent']
             if parent_hash != "0": # Genesis ledger.
-                self.send_request("ledger",
-                                  {"ledger_hash"  : parent_hash,
-                                   "transactions" : True,
-                                   "expand"       : True},
-                                  callback=self.on_got_ledger)
+                if parent_hash not in self._requested_ledgers:
+                    self.send_request("ledger",
+                                      {"ledger_hash"  : parent_hash,
+                                       "transactions" : True,
+                                       "expand"       : True},
+                                      callback=self.on_got_ledger)
 
 
     def on_close(self, ws):
@@ -448,11 +457,14 @@ class Command(BaseCommand):
         if response['type'] == "ledgerClosed":
             # We've been notified that a ledger has closed.  Ask for the ledger
             # details.
-            self.send_request("ledger",
-                              {"ledger_hash"  : response['ledger_hash'],
-                               "transactions" : True,
-                               "expand"       : True},
-                              callback=self.on_got_ledger)
+            ledger_hash = response['ledger_hash']
+            if ledger_hash not in self._requested_ledgers:
+                self.send_request("ledger",
+                                  {"ledger_hash"  : ledger_hash,
+                                   "transactions" : True,
+                                   "expand"       : True},
+                                  callback=self.on_got_ledger)
+                self._requested_ledgers.add(ledger_hash)
             return
 
         # If we get here, we don't know what the message is -> display it to
