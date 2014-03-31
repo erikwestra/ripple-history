@@ -37,7 +37,7 @@ def lookup(request, ripple_address):
 
     # Sort the transactions by the ledger close time.
 
-    transactions.sort(key=lambda transaction: transaction.ledger.close_time)
+    transactions.sort(key=lambda transaction: transaction[1].ledger.close_time)
 
     # Testing: simply dump the returned information so we can see what we have.
 
