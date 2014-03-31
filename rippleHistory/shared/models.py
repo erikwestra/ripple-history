@@ -42,6 +42,9 @@ class Balance(models.Model):
     balance_value    = models.TextField() # ???
     balance_issuer   = models.TextField()
 
+    class Meta:
+        index_together=[("balance_currency", "balance_issuer")]
+
 #############################################################################
 
 class Transaction(models.Model):

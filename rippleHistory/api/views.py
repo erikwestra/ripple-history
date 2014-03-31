@@ -2,7 +2,9 @@
 
     This module defines the vaious views for the rippleHistory.api application.
 """
-from django.http import HttpResponse, HttpResponseNotFound
+from django.http           import HttpResponse, HttpResponseNotAllowed
+from django.http           import HttpResponseBadRequest, HttpResponseNotFound
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 
 import simplejson as json
 
@@ -226,4 +228,55 @@ def get(request, ripple_address):
     # Finally, send the data back to the caller.
 
     return HttpResponse(json.dumps(data), content_type="application/json")
+
+#############################################################################
+
+def balances(request):
+    """ Respond to the "/balances" endpoint.
+
+        We return a list of all known account balances, filtered by currency.
+    """
+    # Get the request parameters.
+
+    if request.method == "GET":
+        params = request.GET
+    elif request.method == "POST":
+        params = request.POST
+    else:
+        return HttpResponseNotAllowed(["GET", "POST"])
+
+    if "currency" not in params:
+        return HttpResponseBadRequest("Missing required 'currency' parameter")
+    currency = params['currency']
+
+    if currency == "XRP":
+        issuer = ""
+    else:
+        if "issuer" not in params:
+            return HttpResponseBadRequest(
+                            "Missing required 'issuer' parameter")
+        issuer = params['issuer']
+
+    # Get the desired page of account balances.
+
+    all_balances = Balance.objects.filter(balance_currency=currency,
+                                          balance_issuer=issuer)
+
+    paginator = Paginator(all_balances, 10000) # 10,000 balances per page.
+    page = params.get("page")
+
+    try:
+        balances = paginator.page(page)
+    except PageNotAnInteger:
+        balances = paginator.page(1)
+    except EmptyPage:
+        balances = []
+
+    response = {}
+    for balance in balances:
+        response[balance.account.ripple_address] = balance.balance_value
+
+    # Finally, send the data back to the caller.
+
+    return HttpResponse(json.dumps(response), content_type="application/json")
 
