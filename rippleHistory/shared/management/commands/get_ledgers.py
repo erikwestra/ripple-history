@@ -418,8 +418,8 @@ class Command(BaseCommand):
                                        "expand"       : True},
                                       callback=self.on_got_ledger)
                 else:
-                    print "already requested, requested_ledgers=" \
-                        + repr(self._requested_ledgers)
+                    self.log("already requested, requested_ledgers=" )
+                             repr(self._requested_ledgers))
 
 
     def on_close(self, ws):
