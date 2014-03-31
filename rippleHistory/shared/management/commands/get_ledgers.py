@@ -177,9 +177,11 @@ class Command(BaseCommand):
             ledger.
         """
         if response["status"] != "success":
-            self.log("ERROR: ledger call returned %s" % str(response))
+            self.log("ERROR: latest ledger call returned %s" % str(response))
             time.sleep(10)
-            self.open() # Try again.
+            self.log("Resending request for latest ledger")
+            self.send_request("ledger", {'ledger_index': "validated"},
+                              callback=self.on_got_latest_ledger)
             return
 
         ledger_hash = response['result']['ledger']['ledger_hash']
