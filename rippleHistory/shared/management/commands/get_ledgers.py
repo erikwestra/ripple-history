@@ -177,6 +177,8 @@ class Command(BaseCommand):
         """
         if response["status"] != "success":
             self.log("ERROR: ledger call returned %s" % str(response))
+            time.sleep(10)
+            self.open() # Try again.
             return
 
         ledger_hash = response['result']['ledger']['ledger_hash']
