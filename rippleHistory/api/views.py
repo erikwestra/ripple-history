@@ -2,7 +2,9 @@
 
     This module defines the vaious views for the rippleHistory.api application.
 """
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseNotFound
+
+import simplejson as json
 
 from rippleHistory.shared.models import *
 
@@ -156,22 +158,72 @@ def lookup(request, ripple_address):
     html.append('</html>')
     return HttpResponse("\n".join(html))
 
-###########
+#############################################################################
 
+def get(request, ripple_address):
+    """ Return the raw transaction and balance data in JSON format.
+    """
+    # Start by finding the Account record with the given ripple address.
+
+    try:
+        account = Account.objects.get(ripple_address=ripple_address)
+    except Account.DoesNotExist:
+        return HttpResponseNotFound()
+
+    # Now get the balance records for this account.  Each balance record should
+    # hold the balance for a given combination of currency and issuer.
+
+    balances = []
+    for balance in Balance.objects.filter(account=account):
+        balances.append(balance)
+
+    # Next, get the raw transaction records for this account.  Note that a
+    # transaction may come from the account, or to to the account -- we have to
+    # check each separately.
+
+    transactions = []
+    for transaction in Transaction.objects.filter(from_account=account):
+        transactions.append(("out", transaction))
+    for transaction in Transaction.objects.filter(to_account=account):
+        transactions.append(("in", transaction))
+
+    # Sort the transactions by the ledger close time.
+
+    transactions.sort(key=lambda transaction: transaction[1].ledger.close_time)
+
+    # Assemble the raw data to return.
+
+    data = {}
+
+    data['balances'] = []
+    for balance in balances:
+        timestamp = balance.ledger.close_time.isoformat()
+
+        data['balances'].append({'timestamp' : timestamp,
+                                 'currency'  : balance.balance_currency,
+                                 'value'     : balance.balance_value,
+                                 'issuer'    : balance.balance_issuer})
+
+    data['transactions'] = []
     for direction,transaction in transactions:
+        timestamp = transaction.ledger.close_time.isoformat()
+
         if direction == "out":
-            other_account = transaction.to_account
+            type    = "withdrawal"
+            account = transaction.to_account
         else:
-            other_account = transaction.from_account
+            type    = "deposit"
+            account = transaction.from_account
 
-        html.append("   " + direction +
-                 "   " + other_account.ripple_address +
-                 "   " + transaction.transation_fee +
-                 "   " + transaction.amount_currency +
-                 "   " + transaction.amount_value +
-                 "   " + transaction.amount_issuer)
+        data['transactions'].append({'timestamp' : timestamp,
+                                     'type'      : type,
+                                     'account'   : account.ripple_address,
+                                     'fee'       : transaction.transaction_fee,
+                                     'currency'  : transaction.amount_currency,
+                                     'value'     : transaction.amount_value,
+                                     'issuer'    : transaction.amount_issuer})
 
-    return HttpResponse("<p/>".join(html))
+    # Finally, send the data back to the caller.
 
-
+    return HttpResponse(json.dumps(data), content_type="application/json")
 
