@@ -271,7 +271,10 @@ class Command(BaseCommand):
             request for the missing ledger.
         """
         if response["status"] != "success":
-            self.log("ERROR: ledger data call returned %s" % str(response))
+            self.log("ERROR: ledger call returned %s" % str(response))
+            ledger_hash = response['request']['ledger_hash']
+            if ledger_hash in self._requested_ledgers:
+                self._requested_ledgers.remove(ledger_hash)
             return
 
         ledger_hash = response['result']['ledger']['ledger_hash']
@@ -417,6 +420,7 @@ class Command(BaseCommand):
                                        "transactions" : True,
                                        "expand"       : True},
                                       callback=self.on_got_ledger)
+                    self._requested_ledgers.add(parent_hash)
                 else:
                     self.log("already requested, requested_ledgers=" +
                              repr(self._requested_ledgers))
