@@ -35,6 +35,10 @@ def lookup(request, ripple_address):
     for transaction in Transaction.objects.filter(to_account=account):
         transactions.append(("in", transaction))
 
+    # Sort the transactions by the ledger close time.
+
+    transactions.sort(key=lambda transaction: transaction.ledger.close_time)
+
     # Testing: simply dump the returned information so we can see what we have.
 
     html = []
